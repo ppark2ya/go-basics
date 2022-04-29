@@ -6,15 +6,20 @@ import (
 )
 
 func main() {
-	// goroutines -> main 함수가 동작하는 동안 병렬로 실행
-	go sexyCount("nico")
-	go sexyCount("jtpark")
-	time.Sleep(time.Second * 5)
+	channel := make(chan string)
+	people := [4]string{"nico", "flynn", "jtpark", "larry"}
+
+	for _, person := range people {
+		go isSexy(person, channel)
+	}
+
+	for i := 0; i < len(people); i++ {
+		// blocking operation -> 결과를 받기 전까지 for문이 멈춰있는다.
+		fmt.Println(<-channel)
+	}
 }
 
-func sexyCount(person string) {
-	for i := 0; i < 10; i++ {
-		fmt.Println(person, "is sexy", i)
-		time.Sleep(time.Second)
-	}
+func isSexy(person string, channel chan string) {
+	time.Sleep(time.Second * 5)
+	channel <- person + " is sexy"
 }
