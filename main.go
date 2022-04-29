@@ -2,24 +2,56 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"net/http"
+	"strconv"
 )
 
-func main() {
-	channel := make(chan string)
-	people := [4]string{"nico", "flynn", "jtpark", "larry"}
+type requestResult struct {
+	url string
+	status string
+}
 
-	for _, person := range people {
-		go isSexy(person, channel)
+func main() {
+	results := make(map[string]string)
+	c := make(chan requestResult)
+	urls := []string{
+		"https://www.google.com/",
+		"https://www.naver.com/",
+		"https://www.daum.net/",
+		"https://www.amazon.com/",
+		"https://www.reddit.com/",
+		"https://www.facebook.com/",
+		"https://www.instagram.com/",
 	}
 
-	for i := 0; i < len(people); i++ {
-		// blocking operation -> 결과를 받기 전까지 for문이 멈춰있는다.
-		fmt.Println(<-channel)
+	for _, url := range urls {
+		go hitUrl(url, c)
+	}
+
+	for i := 0; i < len(urls); i++ {
+		result := <-c
+		results[result.url] = result.status
+	}
+
+	for url, status := range results {
+		fmt.Println(url, status)
 	}
 }
 
-func isSexy(person string, channel chan string) {
-	time.Sleep(time.Second * 5)
-	channel <- person + " is sexy"
+// send only channel
+func hitUrl(url string, c chan <- requestResult) {
+	resp, err := http.Get(url)
+	statusCode := strconv.Itoa(resp.StatusCode)
+
+	if err != nil || resp.StatusCode >= 400 {
+		c <- requestResult{
+			url: url,
+			status: statusCode + ": FAILED",
+		}
+	} else {
+		c <- requestResult{
+			url: url,
+			status: statusCode + ": OK",
+		}
+	}
 }
