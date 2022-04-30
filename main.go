@@ -23,10 +23,15 @@ var baseURL string = "https://kr.indeed.com/jobs?q=python";
 
 func main() {
 	var jobs []extractedJob
+	mainChannel := make(chan []extractedJob)
 	totalPages := getPages()
 
 	for i := 0; i < totalPages; i++ {
-		extractedJobs := getPage(i)
+		go getPage(i, mainChannel)
+	}
+
+	for i := 0; i < totalPages; i++ {
+		extractedJobs := <-mainChannel
 		jobs = append(jobs, extractedJobs...)
 	}
 
@@ -58,8 +63,9 @@ func writeJobs(jobs []extractedJob) {
 	}
 }
 
-func getPage(page int) []extractedJob {
+func getPage(page int, mainChannel chan<- []extractedJob) {
 	var jobs []extractedJob
+	channel := make(chan extractedJob)
 	pageURL := baseURL + "&start=" + strconv.Itoa(page * 10)
 	fmt.Println("Requesting: ", pageURL)
 	res, err := http.Get(pageURL)
@@ -75,20 +81,24 @@ func getPage(page int) []extractedJob {
 	searchCards := doc.Find("#mosaic-provider-jobcards > a.resultWithShelf")
 
 	searchCards.Each(func(i int, card *goquery.Selection) {
-		job := extractJob(card)
-		jobs = append(jobs, job)
+		go extractJob(card, channel)
 	})
 
-	return jobs
+	for i := 0; i < searchCards.Length(); i++ {
+		job := <-channel
+		jobs = append(jobs, job)
+	}
+
+	mainChannel <- jobs
 }
 
-func extractJob(card *goquery.Selection) extractedJob {
+func extractJob(card *goquery.Selection, channel chan<- extractedJob) {
 	id, _ := card.Attr("data-jk")
 	title := cleanString(card.Find(".companyName").Text())
 	location := cleanString(card.Find(".companyLocation").Text())
 	summary := cleanString(card.Find(".job-snippet").Text())
 
-	return extractedJob {
+	channel <- extractedJob {
 		id: id,
 		title: title,
 		location: location,
